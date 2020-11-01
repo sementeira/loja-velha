@@ -1,0 +1,13 @@
+- /.rsync-filter
+- .git/***
+- .cpcache/***
+- .clj-kondo/***
+- /bin/sync-*
+- /alias/dev/target/***
+- .#*
+- .rebel_readline_history
+- .nrepl-*
+- /alias/prod/target/public/js/prod/***
+- *.org
+- *.log
+- /*-config.clj

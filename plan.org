@@ -1,0 +1,63 @@
+* stack
+** initial query devolve todos os qas correspondentes a due lembrandos
+** ui design
+*** review
+    /review (sem mais)
+    summary do que queda; ligaçom a começar (/review/<primeiro>)
+    quando acabo co primeiro, miro no DB o que resta e (/review/<primeiro>) na
+    nova DB?
+** repetition spacing
+*** make sense of sm5
+**** single call: sm5/next-state
+***** args
+****** rate
+****** of-matrix (user)
+****** remembering-state (user, lembrando)
+***** retval
+****** days-to-next
+****** new-user-state (of-matrix)
+****** new-item-state (remembering-state)
+**** needs-repeat?
+     quando erramos umha questom, chamamos sm5/next-state umha vez só, e entom
+     repetimos a questom as vezes que figer falta, mais sem chamar
+     sm5/next-state. podo chamar este estado algo assi como failing?
+**** quero recuperar of-matrix de perguntas velhas?
+nem of-matrix nem item-status; provavelmente as queira reincorporar como
+material novo de vez.
+*** schema
+**** utente
+***** nome
+***** hashed-password
+***** of-matrix
+**** lembrando
+***** utente
+***** pergunta
+***** resposta
+***** due-date
+***** remembering-state
+***** failing?
+      pode ser true para lembrandos com due-date no futuro, e nesse caso devo
+      processá-los imediatamente igual.
+**** recall (for logging, attached to txns)
+***** utente
+***** lembrando
+***** rate
+*** initialization
+**** user
+     manual, via REPL
+     optimal factor matrix pode ser missing
+**** lembrando
+     permitir null due date?  sm5 doesn't care.  pero é harder to query for.
+     melhor epoch due date.
+     remembering state pode ser nil.
+*** tempo é importante
+    juxt/tick
+**** serialization/deserialization
+     usar transit ou edn?
+     usar readers/writers de tick
+          :reader          (transit/reader :json time/time-deserialization-handlers)
+          :writer          (transit/writer :json time/time-serialization-handlers)
+     https://github.com/luminus-framework/luminus-transit/blob/master/src/luminus_transit/time.cljc
+** reorganizar código cljs
+   ou ter em screen/tab/section/...?
+   nom o tenho claro; por enquanto deixar assi
