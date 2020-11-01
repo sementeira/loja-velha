@@ -1,11 +1,11 @@
 # loja
 
-Spaced repetition webapp
+Código da app de loja da Semente.
 
-## Configure
+## Configurar
 
     git update-index --skip-worktree *-config.clj
     
-Then edit `dev-config.clj` to modify development-time configuration (enabled
-with `-A:dev`, and `prod-config.clj` to modify production configuration (enabled
-with `-A:prod`.
+Entom edita `dev-config.clj` para modificar configuraçom de desenvolvimento
+(ativada com `-A:dev`) e `prod-config.clj` para modificar a configuraçom de
+produçom (ativada com `-A:prod`).
