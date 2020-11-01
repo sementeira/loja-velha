@@ -5,6 +5,6 @@
   (cider-default-cljs-repl . figwheel-main)
   (cider-figwheel-main-default-options . "dev"))
  (clojure-mode
-  (cider-clojure-cli-global-options . "-A:dev:hotload-deps:test"))
+  (cider-clojure-cli-global-options . "-A:dev:test"))
  (clojurescript-mode
   (cider-clojure-cli-global-options . "-A:dev")))

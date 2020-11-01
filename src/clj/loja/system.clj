@@ -24,16 +24,6 @@
     [#{"*"} :info]]))
 
 
-(defn hotload-dep
-  "Only works with -A:hotload-deps"
-  [& args]
-  (if-let [f
-           (try (requiring-resolve 'clojure.tools.deps.alpha.repl/add-lib)
-                (catch java.io.FileNotFoundException _ nil))]
-    (apply f args)
-    (warn "dep hotloading is disabled; enable with -A:hotload-deps")))
-
-
 (defn load-config [filename]
   (read-string (slurp (io/file filename))))
 

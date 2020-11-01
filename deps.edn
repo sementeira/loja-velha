@@ -55,13 +55,6 @@
                  "alias/prod/src/cljs"
                  "alias/prod/resources"
                  "alias/prod/target"]}
-
-  :hotload-deps                         ; unofficial, experimental
-  {:extra-deps {org.clojure/tools.deps.alpha
-                {:git/url "https://github.com/clojure/tools.deps.alpha"
-                 :sha     "19d197ab221d37db750423eb970880cb87a91100"}}
-   ;; DynamicClassLoader required for add-lib to work
-   :main-opts  ["-e" "(->>(Thread/currentThread)(.getContextClassLoader)(clojure.lang.DynamicClassLoader.)(.setContextClassLoader,(Thread/currentThread)))"]}
   :idiom-check
   {:extra-deps {tvaughan/kibit-runner {:mvn/version "0.2.3"}}
    :main-opts  ["-m" "kibit-runner.cmdline" "alias" "src"]}
