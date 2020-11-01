@@ -1,63 +1,62 @@
 * stack
-** initial query devolve todos os qas correspondentes a due lembrandos
-** ui design
-*** review
-    /review (sem mais)
-    summary do que queda; ligaçom a começar (/review/<primeiro>)
-    quando acabo co primeiro, miro no DB o que resta e (/review/<primeiro>) na
-    nova DB?
-** repetition spacing
-*** make sense of sm5
-**** single call: sm5/next-state
-***** args
-****** rate
-****** of-matrix (user)
-****** remembering-state (user, lembrando)
-***** retval
-****** days-to-next
-****** new-user-state (of-matrix)
-****** new-item-state (remembering-state)
-**** needs-repeat?
-     quando erramos umha questom, chamamos sm5/next-state umha vez só, e entom
-     repetimos a questom as vezes que figer falta, mais sem chamar
-     sm5/next-state. podo chamar este estado algo assi como failing?
-**** quero recuperar of-matrix de perguntas velhas?
-nem of-matrix nem item-status; provavelmente as queira reincorporar como
-material novo de vez.
-*** schema
-**** utente
+** modelo de dados
+*** user
+    tendeiras ou clientes
+**** delivery-address
+     nom nos preocupar com billing address até alguém nos pedir fatura.
 ***** nome
-***** hashed-password
-***** of-matrix
-**** lembrando
-***** utente
-***** pergunta
-***** resposta
-***** due-date
-***** remembering-state
-***** failing?
-      pode ser true para lembrandos com due-date no futuro, e nesse caso devo
-      processá-los imediatamente igual.
-**** recall (for logging, attached to txns)
-***** utente
-***** lembrando
-***** rate
-*** initialization
-**** user
-     manual, via REPL
-     optimal factor matrix pode ser missing
-**** lembrando
-     permitir null due date?  sm5 doesn't care.  pero é harder to query for.
-     melhor epoch due date.
-     remembering state pode ser nil.
-*** tempo é importante
-    juxt/tick
-**** serialization/deserialization
-     usar transit ou edn?
-     usar readers/writers de tick
-          :reader          (transit/reader :json time/time-deserialization-handlers)
-          :writer          (transit/writer :json time/time-serialization-handlers)
-     https://github.com/luminus-framework/luminus-transit/blob/master/src/luminus_transit/time.cljc
-** reorganizar código cljs
-   ou ter em screen/tab/section/...?
-   nom o tenho claro; por enquanto deixar assi
+***** lugar/rua
+***** número, piso etc.
+***** código postal
+***** província/regiom/etc.
+***** estado
+**** payment-method
+     ver o que requer stripe
+     permitir tamém paypal? ver fees.
+*** category
+    e.g. camisolas
+*** product
+    e.g. camisola ramalho.  hai-na em diferentes cores e tamanhos. quando
+    procuramos cousas que comprar, a página mínima é esta.  depois pode haver
+    diferentes selectores para tamanho, cor, etc.
+*** merc
+    e.g. camisola dumha cor e tamanho concreta. todos estes elementos som
+    intercambiáveis.
+*** color
+    a cor dumha merc
+*** size
+    o tamanho dumha merc
+** use cases
+*** acrescentar categoria?
+    só programaticamente, por enquanto.
+** implementaçom
+*** um servidor em hetzner sobre crux com confluent backend
+*** images etc. em S3
+** mirar
+*** https://github.com/juxt/crux/blob/master/crux-test/test/crux/query_test.clj
+
+* problem statement
+
+  Fazer umha loja online para a Semente.  Venderám-se camisolas, livros,
+  crachás, brinquedos, etc.
+
+  As clientes devem poder descobrir facilmente o que hai para vender, bem por
+  navegaçom por categorias, bem por procura por keywords. Podem acrescentar
+  produtos ao seu carro da compra, podem retirá-los, podem revisar o carro da
+  compra, e quando estiverem satisfeitas podem comprar. Para isso tenhem que
+  entrar os dados de pagamento em Stripe e os dados de envio. O site calcula
+  gastos de envio segundo peso e tamanho da mercadoria e lugar do envio (ver
+  tarifas de correios). Tamém tenhem que dar algum dado de contato (email,
+  telefone?) para trackeado do envio.
+
+  **Mirar leis de proteçom de dados.**
+
+  Damos-lhe à utente a opçom de salvar os seus dados de pagamento e envio
+  abrindo umha conta. Pode ter mais de um endereço de envio e mais do que um
+  cartom.
+
+  As gestoras da tenda recebem notificaçom em tempo real (horas configuráveis
+  pola gestora, default 9-5) dos pedidos e podem marcá-los como enviados.
+  Quando isto acontecer, o cliente pode receber umha notificaçom. Numha
+  primeira versom, o flow acaba aqui e o seguimento da entrega é, no seu caso,
+  manual.
