@@ -11,7 +11,6 @@
             [integrant.core :as ig]
             [muuntaja.middleware :refer [wrap-format]]
             [reitit.ring :as rring]
-            [loja.db-model.qa :as db-qa]
             [loja.db-model.user :as db-user]
             [ring.middleware.anti-forgery :refer [*anti-forgery-token*
                                                   wrap-anti-forgery]]
@@ -111,46 +110,6 @@
       (on-error {:uri redirect-to} nil))))
 
 
-
-(defn- add-qa-handler [crux-node]
-  (fn add-qa [{{:keys [loja.qa/question
-                        loja.qa/answer]} :body-params
-                {user-id :identity} :session
-                :as req}]
-    (println "add-qa called!")
-    (def inner-req req)
-    (try
-      (let [qa-id (db-qa/add-qa crux-node user-id question answer)]
-        (ok {:crux.db/id qa-id
-             :loja.qa/question question
-             :loja.qa/answer answer}))
-      (catch clojure.lang.ExceptionInfo e
-        (print-stack-trace e)
-        {:status 400
-         :body {:error (.getMessage e)
-                :err-data (ex-data e)}}))))
-
-
-(defn- update-qa-handler [crux-node]
-  (fn update-qa [{{:keys [old new]} :body-params
-                  {user-id :identity} :session
-                  :as req}]
-    (println "update-qa called!")
-    (def inner-req req)
-    (try
-      (if (db-qa/update-qa crux-node
-                           (assoc old :loja.qa/owner user-id)
-                           (assoc new :loja.qa/owner user-id))
-        (ok {:status :success
-             :new new})
-        (ok {:status :failure}))
-      (catch clojure.lang.ExceptionInfo e
-        (print-stack-trace e)
-        {:status 400
-         :body {:error (.getMessage e)
-                :err-data (ex-data e)}}))))
-
-
 (defn- handler [crux-node]
   (rring/ring-handler
    (rring/router
@@ -159,8 +118,6 @@
      [""
       {:middleware [wrap-restricted]}
       ["/initial-data" {:get (constantly (ok {:test/data 42}))}]
-      ["/qa" {:post (add-qa-handler crux-node)
-              :put (update-qa-handler crux-node)}]
       ["/test" {:get (constantly {:status 200
                                   :headers {"Content-Type" "text/plain"}
                                   :body "OK"})}]]])

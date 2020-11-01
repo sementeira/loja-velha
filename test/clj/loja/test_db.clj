@@ -3,7 +3,6 @@
             [clojure.test :refer [deftest is use-fixtures]]
             [crux.api :as crux]
             [loja.schema :as schema]
-            [loja.db-model.qa :as db-qa]
             [loja.db-model.user :as db-user]
             [tick.alpha.api :as t]))
 
@@ -55,135 +54,7 @@
   (db-user/add-user *crux-node* "test-user-name" "hashed-password"))
 
 
-(deftest add-qa
-  (let [user-id (add-test-user)
-        q "what?"
-        a "this"
-        qa-id (db-qa/add-qa *crux-node* user-id q a)
-        qa-entity (crux/entity (crux/db *crux-node*) qa-id)
-        other-qa-id (uuid/v1)
-        other-qa-q "some other question"]
-    (is (not (db-qa/existing-question *crux-node* user-id other-qa-q)))
-    (is (db-qa/existing-question *crux-node* user-id q))
-    (is (schema/qa? qa-entity))
-    (is (= {:crux.db/id qa-id
-            :loja.qa/owner user-id
-            :loja.qa/question q
-            :loja.qa/answer a}
-           qa-entity))
-    (is (db-qa/qa-exists? *crux-node* qa-id))
-    (is (not (db-qa/qa-exists? *crux-node* other-qa-id)))
-    (does-not-throw (db-qa/check-qa *crux-node* qa-id))
-    (throws-ex-info (db-qa/check-qa *crux-node* other-qa-id))
-    (is (= (dissoc (db-qa/initial-lembrando qa-id) :crux.db/id)
-           (dissoc
-            (crux/entity (crux/db *crux-node*)
-                         (db-qa/qa->lembrando-id *crux-node* qa-id))
-            :crux.db/id)))))
-
-
-(defn- add-test-qa []
-  (let [uid (add-test-user)
-        q "what?"
-        a "this"]
-    {:user-id uid
-     :q q
-     :a a
-     :qa-id (db-qa/add-qa *crux-node* uid q a)}))
-
-
-(deftest update-qa
-  (let [{:keys [qa-id q a user-id]} (add-test-qa)
-        existing-q "so what, again?"
-        old-ent {:crux.db/id qa-id
-                 :loja.qa/owner user-id
-                 :loja.qa/question q
-                 :loja.qa/answer a}
-        new-ent (assoc old-ent
-                       :loja.qa/question "some other question"
-                       :loja.qa/answer "some other answer")]
-    (db-qa/add-qa *crux-node* user-id existing-q a)
-    (throws-ex-info
-     (db-qa/update-qa *crux-node*
-                    old-ent
-                    (dissoc new-ent :loja.qa/owner)))
-    (throws-ex-info
-     (db-qa/update-qa *crux-node*
-                    old-ent
-                    (assoc new-ent :loja.qa/question existing-q)))
-    (is (not (db-qa/update-qa *crux-node* new-ent new-ent)))
-    (is (db-qa/update-qa *crux-node* old-ent new-ent))
-    (is (not (db-qa/update-qa *crux-node* old-ent new-ent)))))
-
-
-(deftest lembrando
-  (let [{:keys [qa-id]} (add-test-qa)
-        due-date (t/date)
-        failing? true
-        remembering-state [1.0 2.0]
-        lid (db-qa/qa->lembrando-id *crux-node* qa-id)
-        expected-lent {:crux.db/id lid
-                       :loja.lembrando/qa qa-id
-                       :loja.lembrando/due-date due-date
-                       :loja.lembrando/failing? failing?
-                       :loja.lembrando/remembering-state remembering-state}
-        update-ret (db-qa/update-lembrando
-                    *crux-node*
-                    (crux/entity (crux/db *crux-node*) lid)
-                    expected-lent)
-        actual-lent (crux/entity (crux/db *crux-node*) lid)
-        new-date (t/date "2222-02-02")
-        new-failing? false
-        new-remembering-state [3.0 4.0]
-        new-expected-lent {:crux.db/id lid
-                           :loja.lembrando/qa qa-id
-                           :loja.lembrando/due-date new-date
-                           :loja.lembrando/failing? new-failing?
-                           :loja.lembrando/remembering-state new-remembering-state}
-        update2-ret (db-qa/update-lembrando
-                     *crux-node*
-                     actual-lent
-                     new-expected-lent)
-        new-actual-lent (crux/entity (crux/db *crux-node*) lid)]
-    (is update-ret)
-    (is update2-ret)
-    (throws-ex-info (db-qa/update-lembrando
-                      *crux-node*
-                      nil
-                      {:loja.lembrando/due-date due-date
-                       :loja.lembrando/failing? failing?
-                       :loja.lembrando/remembering-state remembering-state}))
-    (is (schema/lembrando? actual-lent))
-    (is (schema/lembrando? new-actual-lent))
-    (is (= expected-lent actual-lent))
-    (is (= new-expected-lent new-actual-lent))))
-
-
-(deftest due-questions
-  (let [{:keys [user-id qa-id]} (add-test-qa)
-        qa2-id (db-qa/add-qa *crux-node* user-id "wat wat?" "yes yes")
-        lent2 (crux/entity (crux/db *crux-node*) (db-qa/qa->lembrando-id *crux-node* qa2-id))
-        qa3-id (db-qa/add-qa *crux-node* user-id "o rly" "you bet!")
-        lent3 (crux/entity (crux/db *crux-node*) (db-qa/qa->lembrando-id *crux-node* qa3-id))]
-    (db-qa/update-lembrando *crux-node*
-                            lent2
-                            (assoc lent2 :loja.lembrando/due-date (t/yesterday)))
-    (db-qa/update-lembrando *crux-node*
-                            lent3
-                            (assoc lent3 :loja.lembrando/due-date (t/tomorrow)))
-    ;; yesterday's and today's questions are included, but not tomorrow's
-    (is (= #{(crux/entity (crux/db *crux-node*) qa-id)
-             (crux/entity (crux/db *crux-node*) qa2-id)}
-           (db-qa/due-questions *crux-node* user-id)))))
 
 (comment
-  (t/yesterday)
 
-  (def lent {:loja.lembrando/due-date
-             (. java.time.LocalDate parse "2020-10-18"),
-             :loja.lembrando/failing? true,
-             :loja.lembrando/remembering-state [1.0 2.0],
-             :crux.db/id #uuid "6e1532f0-1124-11eb-98cd-6ac9d2f914f9",
-             :loja.lembrando/qa #uuid "6e142180-1124-11eb-98cd-6ac9d2f914f9"})
-  (schema/lembrando? lent)
   )
