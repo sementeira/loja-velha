@@ -1,4 +1,5 @@
 * stack
+** mirar API de stripe
 ** modelo de dados
 *** user
     tendeiras ou clientes

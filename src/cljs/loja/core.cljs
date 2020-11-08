@@ -3,6 +3,7 @@
             [re-frame.core :as rf]
             [loja.edit :refer [edit]]
             [loja.review :refer [review]]
+            [loja.stripe-test :refer [stripe-test]]
             [loja.transit-util :refer (transit-ajax-response-format)]))
 
 
@@ -57,12 +58,14 @@
 (def routes
   [["/" :review]
    ["/edit/:qa" :edit]
+   ["/stripe" :stripe]
    ["/not-found" :not-found]])
 
 
 (def page-names
   [[:review "Review"]
-   [:edit "Edit question"]])
+   [:edit "Edit question"]
+   [:stripe "Stripe test"]])
 
 
 (defn not-found []
@@ -110,6 +113,7 @@
       (case current-page
         :review [review]
         :edit [edit qa]
+        :stripe [stripe-test]
         :not-found [not-found]
         [:div "Loading..."])]]))
 

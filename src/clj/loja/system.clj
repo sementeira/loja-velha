@@ -43,7 +43,7 @@
                   :handler (ig/ref :loja.ring-handler/handler)}}
           nrepl-port (assoc :loja.nrepl/server {:port nrepl-port})
           init-user (assoc :loja.system/init {:crux-node (ig/ref :loja.crux/node)
-                                                  :user init-user}))]
+                                              :user init-user}))]
     (info "System config:" (pr-str system-cfg))
     (ig/load-namespaces system-cfg)
     (integrant.repl/set-prep! (constantly system-cfg))))

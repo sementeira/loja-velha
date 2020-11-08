@@ -9,16 +9,64 @@
             [hiccup.core :refer [html]]
             [hiccup.page :refer [doctype]]
             [integrant.core :as ig]
+            [muuntaja.core :as muuntaja]
             [muuntaja.middleware :refer [wrap-format]]
             [reitit.ring :as rring]
             [loja.db-model.user :as db-user]
-            [ring.middleware.anti-forgery :refer [*anti-forgery-token*
-                                                  wrap-anti-forgery]]
+            [loja.system :refer [load-config]]
+            [ring.middleware.anti-forgery :as csrf :refer [*anti-forgery-token*]]
             [ring.middleware.keyword-params :refer [wrap-keyword-params]]
             [ring.middleware.params :refer [wrap-params]]
             [ring.middleware.session :refer [wrap-session]]
-            [ring.util.http-response :refer [content-type ok see-other]]))
+            [ring.util.http-response :refer [content-type ok see-other]]
+            [clojure.java.io :as io])
+  (:import [com.stripe Stripe]
+           [com.stripe.model.checkout Session]
+           [com.stripe.net Webhook]
+           [com.stripe.param.checkout
+            SessionCreateParams
+            SessionCreateParams$LineItem
+            SessionCreateParams$LineItem$PriceData
+            SessionCreateParams$LineItem$PriceData$ProductData
+            SessionCreateParams$Mode
+            SessionCreateParams$PaymentMethodType]))
 
+
+(def stripe-endpoint-secret "whsec_qk7iyYZ0PjqsRGdZOzmzPkJHdI64DpFH")
+
+(let [qty (atom 0)]
+  (defn- create-stripe-checkout-session []
+    (let [{{:keys [public-key secret-key]} :stripe} (load-config "dev-config.clj")
+          _ (set! Stripe/apiKey secret-key)
+          params
+          (.. (SessionCreateParams/builder)
+              (addPaymentMethodType SessionCreateParams$PaymentMethodType/CARD)
+              (setMode SessionCreateParams$Mode/PAYMENT)
+              (setSuccessUrl "http://localhost:3000/stripe?success=true")
+              (setCancelUrl "http://localhost:3000/stripe?cancel=true")
+              (addLineItem
+               (.. (SessionCreateParams$LineItem/builder)
+                   (setQuantity (swap! qty inc))
+                   (setPriceData
+                    (.. (SessionCreateParams$LineItem$PriceData/builder)
+                        (setCurrency "eur")
+                        (setUnitAmount 2000)
+                        (setProductData
+                         (.. (SessionCreateParams$LineItem$PriceData$ProductData/builder)
+                             (setName "Camisola")
+                             (build)))
+                        (build)))
+                   (build)))
+              (build))
+          session (Session/create params)]
+      (.getId session))))
+
+
+(comment
+
+  (create-stripe-checkout-session)
+
+  )
 
 (defn- html5-ok
   ([title body]
@@ -100,6 +148,19 @@
     user-id))
 
 
+(defn- stripe-test [req]
+  (def aft *anti-forgery-token*)
+  (html5-ok "Stripe test"
+            [[:script {:src "https://js.stripe.com/v3/"}]]
+            [[:div#app]
+             [:script {:type "text/javascript"}
+              (str "var csrfToken = \""
+                   *anti-forgery-token*
+                   "\";")]
+             [:script {:type "text/javascript"
+                       :src "/js/loja.js"}]]))
+
+
 (defn login-handler [crux-node]
   (fn handle-login [{{:keys [name password redirect-to]} :params
                      :as req}]
@@ -109,24 +170,20 @@
       ;; XXX: set error string in login instead
       (on-error {:uri redirect-to} nil))))
 
-
-(defn- handler [crux-node]
-  (rring/ring-handler
-   (rring/router
-    [["/login" {:get #(-> % :params :redirect-to login)
-                :post (login-handler crux-node)}]
-     [""
-      {:middleware [wrap-restricted]}
-      ["/initial-data" {:get (constantly (ok {:test/data 42}))}]
-      ["/test" {:get (constantly {:status 200
-                                  :headers {"Content-Type" "text/plain"}
-                                  :body "OK"})}]]])
-   (identity #_wrap-restricted
-    (rring/routes
-     (rring/create-resource-handler
-      {:path "/"})
-     (rring/create-default-handler
-      {:not-found frontpage})))))
+(defn- handle-stripe-webhook [{:keys [headers body]
+                               :as req}]
+  (def wh-req req)
+  (let [sig (get headers "stripe-signature")
+        _ (prn "sig" sig)
+        bodystr (slurp body)
+        event (try (Webhook/constructEvent bodystr sig stripe-endpoint-secret)
+                   (catch Throwable t
+                     (println "Error!")
+                     (print-stack-trace t)
+                     :error))]
+    (prn "got event" event)
+    (def stripe-evt event)
+    {:status (if (identical? event :error) 400 200)}))
 
 
 (defn wrap-def [handler]
@@ -135,35 +192,94 @@
     (handler req)))
 
 
-(defmethod ig/init-key ::handler
-  [_ {:keys [crux-node]}]
-  (-> (handler crux-node)
+(defn- wrap-clojurize [handler]
+  (-> handler
       wrap-auth
-      (wrap-anti-forgery
-       {:read-token (fn [req]
-                      (or (get-in req [:params :csrf-token])
-                          (get-in req [:body-params :csrf-token])))})
       wrap-session
       wrap-format
+
       wrap-keyword-params
       wrap-params))
 
 
-(comment
+(defn- wrap-anti-forgery [handler]
+  (csrf/wrap-anti-forgery
+   handler
+   {:read-token (fn [req]
+                  (or (get-in req [:params :csrf-token])
+                      (get-in req [:body-params :csrf-token])))}))
 
+
+(defn- handler [crux-node]
+  (rring/ring-handler
+   (rring/router
+    [["/stripe-webhook" {:post handle-stripe-webhook}]
+     ["" {:middleware [wrap-clojurize]}
+      ["/stripe-session" {:post (constantly (ok {:stripe/session-id (create-stripe-checkout-session)}))}]
+      ["" {:middleware [wrap-anti-forgery]}
+       ["/stripe" {:get stripe-test}]
+       ["/login" {:get #(-> % :params :redirect-to login)
+                  :post (login-handler crux-node)}]
+       [""
+        #_{:middleware [wrap-restricted]}
+        ["/initial-data" {:get (constantly (ok {:test/data 42}))}]
+        ["/test" {:get (constantly {:status 200
+                                    :headers {"Content-Type" "text/plain"}
+                                    :body "OK"})}]]]]])
+   (identity
+    #_wrap-restricted
+    (wrap-clojurize
+     (rring/routes
+      (rring/create-resource-handler
+       {:path "/"})
+      (rring/create-default-handler
+       {:not-found frontpage}))))))
+
+
+(defmethod ig/init-key ::handler
+  [_ {:keys [crux-node]}]
+  (handler crux-node))
+
+
+(comment
   (do
     (require '[integrant.repl.state :refer [system]])
     (def crux-node (:loja.crux/node system)))
 
   crux-node
 
+  original-req
+
+  aft
+
   ( (save-qa-handler crux-node)
    inner-req)
 
   original-req
 
+  wh-req
+
+  (def header (-> wh-req :headers (get "stripe-signature")))
+  (def body (:body wh-req))
+
+  (def body-params (:body-params wh-req))
+
+  (keys body-params)
+  (def body-json (slurp (muuntaja/encode "application/json" body-params)))
+
+  (println body-json)
+
+
+  (slurp body)
+
+  (Webhook/constructEvent body-json header stripe-endpoint-secret)
   reqreq
 
+  (def handler *1)
+  (def handler (rring/ring-handler handler))
+  (handler {:uri "/stripe-session" :request-method :post :params {:csrf-token aft}})
+
+  (*1 :blah)
   (require '[loja.crux :as c])
   (c/q1 crux-node {:find ['qa]
                    :where [['qa :loja.qa/owner]]})
