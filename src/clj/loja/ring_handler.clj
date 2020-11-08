@@ -39,7 +39,7 @@
        (content-type "text/html; charset=utf-8"))))
 
 (defn- frontpage [_]
-  (html5-ok "Relembra"
+  (html5-ok "Loja da Semente"
             [[:link {:rel "stylesheet" :href "https://cdn.jsdelivr.net/font-hack/2.020/css/hack-extended.min.css"}]
              [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css?family=Yrsa"}]
              [:link {:rel "stylesheet" :href "https://fonts.googleapis.com/css?family=Roboto:400,300,500&amp;subset=latin" :media "all"}]

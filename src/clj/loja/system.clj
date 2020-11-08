@@ -29,8 +29,8 @@
 
 
 (defmethod ig/init-key ::init [_ {:keys [crux-node]
-                                  {:keys [username password]} :user}]
-  (db-user/add-user crux-node username (hashers/derive password)))
+                                  {:keys [username password role]} :user}]
+  (db-user/add-user crux-node username (hashers/derive password) role))
 
 
 (defn prep [{:keys [db-dir init-user http-port nrepl-port]}]
